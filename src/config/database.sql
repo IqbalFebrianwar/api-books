@@ -1,0 +1,21 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  username VARCHAR(100) UNIQUE NOT NULL,
+  password VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS books (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title VARCHAR(100) NOT NULL,
+  author VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS loans (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id),
+  book_id UUID REFERENCES books(id),
+  description VARCHAR(200) NOT NULL,
+  createdAt TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
