@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  HRD
+  MANAGER
+  KARYAWAN
+}
+
+enum AbsensiStatus {
+  HADIR
+  IZIN
+  SAKIT
+  CUTI
+  ALPHA
+}
+
+enum GajiStatus {
+  PROSES
+  DITERIMA
+}
+
+enum PersetujuanStatus {
+  PENDING
+  DITERIMA
+  DITOLAK
+}
+
+model User {
+  id                 String     @id @default(uuid()) @db.Uuid
+  username           String     @unique
+  password           String
+  role               Role
+  is_verified        Boolean    @default(false)
+  verification_token String? 
+  create_at          DateTime   @default(now())
+  karyawan           Karyawan?
+  cuti_disetujui     Cuti[]     @relation("DisetujuiOlehCuti")
+  izin_disetujui     Izin[]     @relation("DisetujuiOlehIzin")
+}
+
+model Settings {
+  id String @id @default(uuid())
+  fee_overtime BigInt
+}
+
+model Karyawan {
+  id            String     @id @default(uuid()) @db.Uuid
+  user_id       String     @unique @db.Uuid
+  user          User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  nama_lengkap  String?
+  nip           String?    @unique
+  posisi        String?
+  tanggal_masuk DateTime?
+  alamat        String?
+  no_hp         String?
+  foto_url      String?
+  absensi       Absensi[]
+  gaji          Gaji[]
+  cuti          Cuti[]
+  izin          Izin[]
+}
+
+model Absensi {
+  id           String         @id @default(uuid()) @db.Uuid
+  karyawan_id  String         @db.Uuid
+  karyawan     Karyawan       @relation(fields: [karyawan_id], references: [id], onDelete: Cascade)
+  tanggal      DateTime
+  jam_masuk    DateTime?
+  jam_keluar   DateTime?
+  ot  Int?
+  status       AbsensiStatus
+}
+
+model Gaji {
+  id           String       @id @default(uuid()) @db.Uuid
+  karyawan_id  String       @db.Uuid
+  karyawan     Karyawan     @relation(fields: [karyawan_id], references: [id], onDelete: Cascade)
+  bulan        String       // Format: YYYY-MM
+  gaji_pokok   Decimal      @db.Decimal(12, 2)
+  tunjangan    Decimal      @db.Decimal(12, 2)
+  potongan     Decimal      @db.Decimal(12, 2)
+  status       GajiStatus   @default(PROSES)
+}
+
+model Cuti {
+  id              String             @id @default(uuid()) @db.Uuid
+  karyawan_id     String             @db.Uuid
+  karyawan        Karyawan           @relation(fields: [karyawan_id], references: [id], onDelete: Cascade)
+  tanggal_mulai   DateTime
+  tanggal_selesai DateTime
+  alasan          String?
+  status          PersetujuanStatus @default(PENDING)
+  disetujui_oleh  String?            @db.Uuid
+  disetujui       User?              @relation("DisetujuiOlehCuti", fields: [disetujui_oleh], references: [id])
+}
+
+model Izin {
+  id              String             @id @default(uuid()) @db.Uuid
+  karyawan_id     String             @db.Uuid
+  karyawan        Karyawan           @relation(fields: [karyawan_id], references: [id], onDelete: Cascade)
+  tanggal         DateTime
+  alasan          String?
+  status          PersetujuanStatus @default(PENDING)
+  disetujui_oleh  String?            @db.Uuid
+  disetujui       User?              @relation("DisetujuiOlehIzin", fields: [disetujui_oleh], references: [id])
+}

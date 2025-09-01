@@ -1,14 +1,21 @@
 import { Request, Response } from 'express';
-import pool from '../config/database-config';
+import prisma from '../models/model';
+import { HashPass } from '../utils/bcrypt';
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
-        const result = await pool.query('SELECT * FROM users');
+        const result = await prisma.user.findMany();
 
+        if(!result){
+            return res.status(404).json({
+                statusCode: 404,
+                massage: "User tidak di temukan"
+            })
+        }
         return res.status(200).json({
             statusCode: 200,
             message: "User Telah Di Temukan",
-            data: result.rows
+            data: result
         });
     } catch (error) {
         return res.status(500).json({
@@ -21,15 +28,28 @@ export const getUsers = async (req: Request, res: Response) => {
 export const createUser = async (req: Request, res: Response) => {
     const { username, password } = req.body;
     try {
-        const result = await pool.query(
-            'INSERT INTO users (username, password) VALUES ($1, $2) RETURNING *',
-            [username, password]
-        );
+        const hashPass = await HashPass(password)
+        const result = await prisma.user.create({
+            data:{
+                username,
+                password: hashPass,
+                role:"KARYAWAN"
+
+            },
+            select: {
+                id: true,
+                username: true,
+            },
+
+        })
+
+        if (!result) {
+            return res.status(404).json({ message: "Data Not Found" });
+        }
 
         return res.status(200).json({
             statusCode: 200,
             message: "User Dapat Di Tambahkan!",
-            data: result.rows[0]
         })
     } catch (error) {
         return res.status(500).json({
@@ -40,25 +60,19 @@ export const createUser = async (req: Request, res: Response) => {
 };
 
 export const getUserId = async (req : Request, res : Response) => {
-    const { id } = req.params
-
+    
     try {
-        const result = await pool.query(
-            'SELECT id, username FROM users WHERE id = $1',
-            [id]
-        )
-        
-        if(result.rows.length === 0){
-            return res.status(400).json({
-                statusCode : 400,
-                message : "Data not Found"
-            })
-        }
+        const userId  = req.params.id
+        const result = await prisma.user.findUnique({
+            where: {
+                id : userId
+            }
+        })
 
         return res.status(200).json({
             statusCode : 200,
             message : "Data telah telah di temukan!",
-            data : result.rows
+            data : result
         })
     } catch (error) {
         return res.status(500).json({
@@ -69,58 +83,43 @@ export const getUserId = async (req : Request, res : Response) => {
 }
 
 export const updateUser = async (req : Request, res : Response) => {
-    const {id} = req.params
+    const {userId} = req.params
     const {username, password} = req.body
 
     try {
-        const result = await pool.query(
-            'UPDATE users SET username = $1, password = $2 WHERE id = $3 RETURNING *',
-            [username, password, id]
-        )
-    
-        if(result.rows.length === 0){
-            return res.status(400).json({
-                statusCode : 400,
-                message : "Data not Found"
-            })
+        const existingUser = await prisma.user.findUnique({ where: { id:  userId} });
+
+        if (!existingUser) {
+            return res.status(404).json({ message: "User tidak ditemukan" });
         }
 
-        return res.status(200).json({
-            statusCode : 200,
-            message : "User telah di Update"
-        })
+        const hashedPassword = password ? await HashPass(password) : existingUser.password;
+
+        await prisma.user.update({
+            where: { id: userId },
+            data: { username: username || existingUser.username, password: hashedPassword },
+        });
+
+        return res.status(200).json({ message: "Data User telah berhasil diubah" });
     } catch (error) {
-        return res.status(500).json({
-            statusCode : 500,
-            message : "Internal Server Error"
-        })
+        return res.status(500).json({ error: "Internal Server Error" });
     }
 }
 
 export const deleteUser = async (req : Request,res : Response) => {
-    const {id} = req.params
+    const {userId} = req.params
 
     try {
-        const result = await pool.query(
-            'DELETE FROM users WHERE id = $1 RETURNING *',
-            [id]
-        )
-    
-        if(result.rows.length === 0){
-            return res.status(400).json({
-                statusCode : 400,
-                message : "Data not Found"
-            })
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+
+        if (!user) {
+            return res.status(404).json({ message: "Data Not Found" });
         }
-    
-        return res.status(200).json({
-            statusCode : 200,
-            message : "Data Berhasil di Hapus"
-        })
+
+        await prisma.user.delete({ where: { id: userId } });
+
+        return res.status(200).json({ message: "User berhasil dihapus" });
     } catch (error) {
-        return res.status(500).json({
-            statusCode : 500,
-            message : "Internal Server Error", error
-        })
+        return res.status(500).json({ error: "Internal Server Error" });
     }
 }
